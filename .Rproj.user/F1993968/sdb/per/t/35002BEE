@@ -1,0 +1,16 @@
+{
+    "contents" : "#########################################################\n# Decision Tree Implementation (Recursive Partitioning) \n#\n# Grow a decision tree and use those results\n# to identify fault conditions\n# \n# - Aaron Cousland 13/05/2015\n########################################################\n\nrequire (RODBC)       # SQL connectivity\nrequire (rpart)       # Decision free functions\nrequire (rpart.plot)  # Plotting decision trees\nrequire (rattle)      # More plotting tools\nrequire (dplyr)       # Required for performance measurement\n\n# Close any existing connections\nodbcCloseAll()\n\n# Create a connection to the database called\nlocal.connection <- odbcConnect(\"RTV\", believeNRows=FALSE)\n\n# Query the database and put the results into the data frame logging.results\nlogger.results <- sqlQuery(local.connection, \n                                    \"SELECT * FROM ELSPEC.RMS_TRAINING where ts between '17/MAR/15 09:00:00 AM' and '17/MAR/15 10:00:00 PM';\")\n\n# Create Training Dataset\nStartTime <- force_tz(as.POSIXct(\"2015-03-17 09:00:00\", format = \"%Y-%m-%d %H:%M:%OS\"),\"AEST\")\nEndTime <- force_tz(as.POSIXct(\"2015-03-17 10:00:00\", format = \"%Y-%m-%d %H:%M:%OS\"),\"AEST\")\nlogger.results.training <- subset(logger.results, logger.results$TS >= StartTime & logger.results$TS <= EndTime)\n\n# Set up relational formula\ntree.formula <- \"logger.results.training$FAULT ~ (logger.results.training$RMSI1 + logger.results.training$RMSI3 + logger.results.training$RMSVN)\"  \n\n# Grow tree\ntree.model <- rpart(tree.formula, data=logger.results.training, method=\"anova\")\n\n# Prune tree to stop over fit\ntree.model$cptable[which.min(tree.model$cptable[,\"xerror\"]),\"CP\"]\n\n# Plot a picture of the tree\nfancyRpartPlot(tree.model)\n\n# Apply decision tree results\nlogger.results$PrFault <- ifelse(logger.results$RMSI1<0.16,0,1)\n\n# Measure Performance\nperformance <- logger.results %>%\n  group_by(FAULT) %>%\n  summarise (Score = sum(PrFault))\n\n# Display Performance\nprint(paste(\"Score =\",performance$Score[2]-performance$Score[1],\"/\",sum(logger.results$FAULT==TRUE)))\n",
+    "created" : 1431489171134.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "1803259716",
+    "id" : "35002BEE",
+    "lastKnownWriteTime" : 1431500308,
+    "path" : "C:/Users/acousla1/OneDrive/Projects/Fault Anticipation/Code/Signature_Detection/Decision-Tree/main.R",
+    "project_path" : "main.R",
+    "properties" : {
+    },
+    "source_on_save" : false,
+    "type" : "r_source"
+}
