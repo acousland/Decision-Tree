@@ -12,6 +12,7 @@ require (rpart)       # Decision free functions
 require (rpart.plot)  # Plotting decision trees
 require (rattle)      # More plotting tools
 require (dplyr)       # Required for performance measurement
+require (lubridate)   # Date manipulation tool
 
 # Close any existing connections
 odbcCloseAll()
@@ -23,9 +24,24 @@ local.connection <- odbcConnect("RTV", believeNRows=FALSE)
 logger.results <- sqlQuery(local.connection, 
                                     "SELECT * FROM ELSPEC.RMS_TRAINING where ts between '17/MAR/15 09:00:00 AM' and '17/MAR/15 10:00:00 PM';")
 
+logger.results.backup <- logger.results
+
+
+
+
+logger.results <- logger.results.backup
+
+# Order by timestamp and force local timestamp
+logger.results <- logger.results[with(logger.results, order(logger.results$TS)),]
+logger.results$TS <- force_tz(logger.results$TS,"UTC")
+
+# Superimpose load current on fault current
+#logger.results$RMSI1 <- (logger.results$RMSI1 + logger.results$RMSI2)
+#logger.results$RMSI3 <- (logger.results$RMSI3 + logger.results$RMSI2)
+
 # Create Training Dataset
-StartTime <- force_tz(as.POSIXct("2015-03-17 09:00:00", format = "%Y-%m-%d %H:%M:%OS"),"AEST")
-EndTime <- force_tz(as.POSIXct("2015-03-17 10:00:00", format = "%Y-%m-%d %H:%M:%OS"),"AEST")
+StartTime <- force_tz(as.POSIXct("2015-03-17 09:00:00", format = "%Y-%m-%d %H:%M:%OS"),"UTC")
+EndTime <- force_tz(as.POSIXct("2015-03-17 11:00:00", format = "%Y-%m-%d %H:%M:%OS"),"UTC")
 logger.results.training <- subset(logger.results, logger.results$TS >= StartTime & logger.results$TS <= EndTime)
 
 # Set up relational formula
@@ -48,5 +64,17 @@ performance <- logger.results %>%
   group_by(FAULT) %>%
   summarise (Score = sum(PrFault))
 
+performance$Score
+
 # Display Performance
 print(paste("Score =",performance$Score[2]-performance$Score[1],"/",sum(logger.results$FAULT==TRUE)))
+
+# Interrogate results
+StartTime <- force_tz(as.POSIXct("2015-03-17 13:18:00", format = "%Y-%m-%d %H:%M:%OS"),"UTC")
+EndTime <- force_tz(as.POSIXct("2015-03-17 13:19:00", format = "%Y-%m-%d %H:%M:%OS"),"UTC")
+logger.results.subset <- subset(logger.results, logger.results$TS >= StartTime & logger.results$TS <= EndTime)
+
+plot(logger.results.subset$TS,logger.results.subset$RMSI1, type="l")
+polygon(logger.results.subset$TS,logger.results.subset$PrFault*max(logger.results.subset$RMSI1), col =rgb(1,0,0,alpha=0.3),xlab="",ylab="",yaxt="n",border = NA)
+axis(4)
+
